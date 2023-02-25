@@ -7,7 +7,6 @@ public class MiniMapSpawner : MonoBehaviour
 {
     [HideInInspector] public List<GameObject> MiniMapTiles;
     private GameObject newTile;
-    public LocationRepository LocationRepository;
 
     public void SpawnMap()
     {
@@ -29,7 +28,7 @@ public class MiniMapSpawner : MonoBehaviour
                 newTile.GetComponent<Transform>().localPosition = new Vector2(_x, _y);
                 newTile.GetComponent<Transform>().localScale = new Vector2(_x, _y);
 
-                newTile.AddComponent<SpriteRenderer>().sprite = LocationRepository.LocationPatterns[0].Tiles[0];
+                newTile.AddComponent<SpriteRenderer>().sprite = WorldPrefs.LocationPatterns[0].Tiles[0];
                 
 
                 MiniMapTiles.Add(newTile);

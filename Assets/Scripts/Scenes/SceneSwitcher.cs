@@ -3,22 +3,8 @@ using UnityEngine.SceneManagement;
 
 public class SceneSwitcher : MonoBehaviour
 {
-
-    private void Start()
+    public void SwitchToSceneAtName(string sceneName)
     {
-        if (GetComponent<AudioListener>().enabled == false)
-        {
-            GetComponent<AudioListener>().enabled = true;
-        }
-    }
-
-    public void SwitchToScene(string sceneName)
-    {
-        if (GetComponent<AudioListener>().enabled == true)
-        {
-            GetComponent<AudioListener>().enabled = false;
-        }
-
         SceneManager.LoadScene(sceneName);
     }
 }

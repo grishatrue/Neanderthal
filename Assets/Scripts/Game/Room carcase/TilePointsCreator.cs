@@ -4,39 +4,26 @@ using UnityEngine;
 
 public class TilePointsCreator : MonoBehaviour
 {
-    public Camera Camera;
-    public WorldCreator WorldCreator;
-
-    private List<Vector2> tilesPoints = new List<Vector2>();
-    public List<Vector2> TilesPoints
-    {
-        get { return tilesPoints; }
-        private set { tilesPoints = TilesPoints; }
-    }
-
+    public Camera cam;
+    public int worldSide = WorldPrefs.WorldSide;
     private float tileSize;
-    public float TileSize
-    {
-        get { return tileSize; }
-        private set { tileSize = TileSize; }
-    }
+    private List<Vector2> tilesPoints = new List<Vector2>();
+
+    public float TileSize => tileSize;
 
     void Start()
     {
-        float cameraSize = Camera.orthographicSize * 2;
-        TileSize = cameraSize / WorldCreator.WorldSide;
+        float cameraSize = cam.orthographicSize * 2;
+        tileSize = cameraSize / worldSide;
+        var yPos = ((cameraSize / 2) - (tileSize / 2)) * 10;
 
-        float xPos;
-        float yPos = ((cameraSize / 2) - (tileSize / 2)) * 10;
-
-        for (int y = 0; y < WorldCreator.WorldSide; y++)
+        for (int y = 0; y < worldSide; y++)
         {
-            xPos = ((-cameraSize / 2) + (cameraSize / WorldCreator.WorldSide / 2)) * 10;
+            var xPos = ((-cameraSize / 2) + (cameraSize / worldSide / 2)) * 10;
 
-            for (int x = 0; x < WorldCreator.WorldSide; x++)
+            for (int x = 0; x < worldSide; x++)
             {
-                TilesPoints.Add(new Vector2(xPos, yPos));
-
+                tilesPoints.Add(new Vector2(xPos, yPos));
                 xPos += tileSize * 10;
             }
 
