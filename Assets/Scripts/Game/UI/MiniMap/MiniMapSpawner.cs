@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 public class MiniMapSpawner : MonoBehaviour
-{
+{/*
     [HideInInspector] public List<GameObject> MiniMapTiles;
     private GameObject newTile;
 
@@ -39,5 +39,5 @@ public class MiniMapSpawner : MonoBehaviour
             _x = mapRectTransform.localPosition.x - _width / 3; //
             _y += _height / 3;
         }
-    }
+    }*/
 }

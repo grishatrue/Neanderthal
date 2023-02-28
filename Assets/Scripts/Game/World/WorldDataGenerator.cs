@@ -1,44 +1,30 @@
 ﻿using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
+using System;
 
-public class WorldDataGenerator : MonoBehaviour
+public class WorldDataGenerator
 {
-    private int worldSide = WorldPrefs.WorldSide;
-
-    private FileManager fileManager;
-
-    private int startRoomIndex = 3400;
-    private int[] locationMap;
-
-    private List<string> locationsStr;
-    private List<int> locationsInt = new List<int>();
-
-    private bool isWorldMapFull = false;
-
-    public int[] LocationMap { get => locationMap; private set => locationMap = value; }
-    public bool IsWorldMapFull { get => isWorldMapFull; private set => isWorldMapFull = value; }
-    public int StartRoomIndex { get => startRoomIndex; private set => startRoomIndex = value; }
-
-
-
-    public List<List<Tile>> CreateWorld()
+    public WorldData GetNewWorldData()
     {
-        fileManager = GetComponent<FileManager>();
-        isWorldMapFull = false;
-        
-        locationsStr = WorldPrefs.Locations;
+        LoadAndAllocateResouces();
 
-        for (int i = 0; i < locationsStr.Count; i++)
+        int startRoomIndex = 3400;
+        int worldSide = WorldAncillaryData.WorldSide;
+        int[] locationMap;
+        List<int> locationsInt = new List<int>();
+        int lastLocationIndex = (int)Location.SEA;
+
+        for (int i = 0; i <= lastLocationIndex; i++)
         {
             locationsInt.Add(i);
         }
 
-        LocationMap = new int[worldSide * worldSide];
+        locationMap = new int[worldSide * worldSide];
 
         for (int i = 0; i < worldSide * worldSide; i++)
         {
-            LocationMap[i] = locationsInt[locationsInt.Count - 1];
+            locationMap[i] = locationsInt[locationsInt.Count - 1];
         }
 
         List<Vector2> points3 = new List<Vector2>();
@@ -95,10 +81,10 @@ public class WorldDataGenerator : MonoBehaviour
                 else
                     rand = locationsInt[locationsInt.Count - i - 2];
 
-                StrFilling(new Vector2(centerX, centerY), points[i][e], points[i][e + 1], rand);
+                FillInLines(new Vector2(centerX, centerY), points[i][e], points[i][e + 1], rand, worldSide, locationMap);
             }
 
-            StrFilling(new Vector2(centerX, centerY), points[i][points[i].Count - 1], points[i][0], locationsInt[locationsInt.Count - i - 2]);
+            FillInLines(new Vector2(centerX, centerY), points[i][points[i].Count - 1], points[i][0], locationsInt[locationsInt.Count - i - 2], worldSide, locationMap);
         }
         points.Reverse();
 
@@ -109,45 +95,46 @@ public class WorldDataGenerator : MonoBehaviour
             {
                 int _X = (int)points[location][i].x;
                 int _Y = (int)points[location][i].y;
-                LocationMap[worldSide * (_Y - 1) + _X] = location;
+                locationMap[worldSide * (_Y - 1) + _X] = location;
             }
         }
 
-        for (int i = 0; i < LocationMap.Length; i++) // qq типа пофиксил "err01"
+        for (int i = 0; i < locationMap.Length; i++) // qq типа пофиксил "err01"
         {
-            if (LocationMap[i] == 9)
+            if (locationMap[i] == 9)
             {
-                LocationMap[i] = LocationMap[i - 1];
+                locationMap[i] = locationMap[i - 1];
             }
         }
 
-        return GenerateRooms(points);
+
+        return new WorldData(startRoomIndex, locationMap, GenerateRooms(points, locationMap, worldSide, startRoomIndex));
     }
 
-    private List<List<Tile>> GenerateRooms(List<List<Vector2>> p)
+    private List<List<Tile>> GenerateRooms(List<List<Vector2>> pointMap, int[] locationMap, int worldSide, int startRoomIndex)
     {
-        var localMap = new List<List<Tile>>();
+        var localTileMap = new List<List<Tile>>();
 
-        for (int i = 0; i < LocationMap.Length; i++)
+        for (int i = 0; i < locationMap.Length; i++)
         {
-            localMap.Add(CreateRoomData(LocationMap[i])); // qq (err01) тут в LocationsMap[i] проскакивает 9 (символ предзаполнения)
+            localTileMap.Add(GetNewRoomData(locationMap[i], worldSide)); // qq (err01) тут в LocationsMap[i] проскакивает 9 (символ предзаполнения)
         }
 
-        for (int i = 0; i < WorldPrefs.SpecialRoomsCarcases.Count; i++)
+        for (int i = 0; i < WorldAncillaryData.SpecialRoomsCarcases.Count; i++)
         {
-            int loc = locationsStr.FindIndex(s => s == WorldPrefs.SpecialRoomsCarcases[i].sourceLocation);
-            Vector2 _ = p[loc][UnityEngine.Random.Range(0, p[loc].Count)];
-            int randomRoomIndex = (int)(worldSide * (_.y - 1) + _.x);
-            localMap[randomRoomIndex] = ChangeRoomToSpecial(loc, localMap[randomRoomIndex]);
+            int currentLocInd = (int)WorldAncillaryData.SpecialRoomsCarcases[i].sourceLocation;
+            Vector2 currentLocPoints = pointMap[currentLocInd][UnityEngine.Random.Range(0, pointMap[currentLocInd].Count)];
+            int randomRoomIndex = (int)(worldSide * (currentLocPoints.y - 1) + currentLocPoints.x);
+            //localMap[randomRoomIndex] = GetSpecialRoomDataAtName(loc, localMap[randomRoomIndex]);
+            localTileMap[randomRoomIndex] = GetSpecialRoomDataAtIndex(i);
 
-            if (WorldPrefs.SpecialRoomsCarcases[i].name == "Home village")
+            if (WorldAncillaryData.SpecialRoomsCarcases[i].name == "Home village")
             {
-                StartRoomIndex = randomRoomIndex;
+                startRoomIndex = randomRoomIndex;
             }
         }
 
-        IsWorldMapFull = true;
-        return localMap;
+        return localTileMap;
     }
 
     private List<Vector2> GetNewApexes(List<Vector2> p, int centerX, int centerY)
@@ -210,7 +197,7 @@ public class WorldDataGenerator : MonoBehaviour
         return np;
     }
 
-    private void StrFilling(Vector2 center, Vector2 p0, Vector2 p1, int fill)
+    private void FillInLines(Vector2 center, Vector2 p0, Vector2 p1, int fill, int worldSide, int[] locationMap)
     {
         int extraFill = 9; // Символ предзаполнения
         List<Vector2> _tri = new List<Vector2> { center, p0, p1 }; // Сектор предзаполнения
@@ -251,7 +238,7 @@ public class WorldDataGenerator : MonoBehaviour
             {
                 int _ind = worldSide * ((int)Mathf.Round(ny) - 1) + (int)Mathf.Round(nx);
 
-                LocationMap[_ind] = extraFill;
+                locationMap[_ind] = extraFill;
 
                 nx += Mathf.Abs(w) > Mathf.Abs(h) ? d : z;
                 ny += Mathf.Abs(w) > Mathf.Abs(h) ? z : d;
@@ -264,7 +251,7 @@ public class WorldDataGenerator : MonoBehaviour
 
             for (int i = worldSide * (y - 1); i < worldSide * y; y++)
             {
-                w.Add(LocationMap[i]);
+                w.Add(locationMap[i]);
             }
 
             if (w.Contains(extraFill))
@@ -281,24 +268,25 @@ public class WorldDataGenerator : MonoBehaviour
 
                 for (int x = foundPoints[0]; x < foundPoints[foundPoints.Count - 1] + 1; x++)
                 {
-                    LocationMap[x] = fill;
+                    locationMap[x] = fill;
                 }
             }
         }
     }
 
-    private List<Tile> CreateRoomData(int locationIndex)
+    private List<Tile> GetNewRoomData(int locationIndex, int worldSide)
     {
         List<Tile> tiles = new List<Tile>();
-        LocationPattern lr = WorldPrefs.LocationPatterns[locationIndex];
-        List<Sprite> tilesRep = lr.Tiles;
-        List<Sprite> bushesRep = lr.Bushes;
-        List<Sprite> bigBushesRep = lr.BigBushes;
-        List<Sprite> wallsRep = lr.Walls;
+        // загрузка ресов // qq // err
+        LocationResources locRepos = WorldAncillaryData.LocationResourcesList[locationIndex];
+        List<Sprite> tilesRep = locRepos.Tiles;
+        List<Sprite> bushesRep = locRepos.Bushes;
+        List<Sprite> wallsRep = locRepos.Walls;
+        List<Sprite> bigBushesRep = locRepos.BigBushes;
 
         int wallsCount = UnityEngine.Random.Range(0, 5);
 
-        List<int> stonesArea = WorldPrefs.StonesArea;
+        List<int> stonesArea = WorldAncillaryData.StonesArea;
         List<int> stonesIndexes = new List<int>();
 
         for (int i = 0; i < wallsCount; i++)
@@ -347,30 +335,66 @@ public class WorldDataGenerator : MonoBehaviour
 
         return tiles;
     }
-
-    private List<Tile> ChangeRoomToSpecial(int locationIndex, List<Tile> oldRoom)
+    
+    private List<Tile> GetSpecialRoomDataAtIndex(int index)
     {
-        //List<Tile> newRoom = room from storage
-        /*
-        for (int i = 0; i < )
-        {
+        SpecialRoomCarcaseStruct newSpecialRoom = WorldAncillaryData.SpecialRoomsCarcases[index]; // допилить // qq
 
-        }
-        */
         return default;
     }
-}
 
-public class World_Storage : MonoBehaviour
-{
-    public int startRoomIndex;
-    public int[] locationIndexMap;
-    public Tile[][] tileIndexMap;
-
-    public World_Storage() { }
-
-    private void Start()
+    public void LoadAndAllocateResouces()
     {
-        new WorldDataGenerator().CreateWorld();
+        var tiles = Resources.LoadAll<Sprite>("Game Objects/Tiles") as Sprite[];
+        var bushes = Resources.LoadAll<Sprite>("Game Objects/Bushes") as Sprite[];
+        var localLoc = new List<string>();
+
+        foreach (string i in Enum.GetNames(typeof(Location)))
+        {
+            localLoc.Add(i.ToLower());
+        }
+
+        for (int i = 0; i < localLoc.Count; i++)
+        {
+            List<Sprite> tilesL = new List<Sprite>();
+            List<Sprite> wallsL = new List<Sprite>();
+            List<Sprite> bushesL = new List<Sprite>();
+            List<Sprite> bigBushesL = new List<Sprite>();
+
+            for (int fileInd = 0; fileInd < tiles.Length; fileInd++)
+            {
+                if (tiles[fileInd].name.Split('-')[0].ToLower() == localLoc[i]) // tiles norm
+                {
+                    tilesL.Add(tiles[fileInd]);
+                }
+            }
+
+            for (int fileInd = 0; fileInd < tiles.Length; fileInd++) // walls
+            {
+                if (tiles[fileInd].name.Split('-')[1].ToLower() == "wall")
+                {
+                    wallsL.Add(tiles[fileInd]);
+                }
+            }
+
+            for (int fileInd = 0; fileInd < bushes.Length; fileInd++) // bushes low
+            {
+                if (bushes[fileInd].name.Split('-')[0].ToLower() == localLoc[i])
+                {
+                    bushesL.Add(bushes[fileInd]);
+                }
+            }
+
+            for (int fileInd = 0; fileInd < bushes.Length; fileInd++) // bushes big
+            {
+                if (bushes[fileInd].name.Split('-')[1].ToLower() == "big")
+                {
+                    bigBushesL.Add(bushes[fileInd]);
+                }
+            }
+
+            string locName = Enum.GetName(typeof(Location), i);
+            WorldAncillaryData.LocationResourcesList.Add(new LocationResources(locName.ToString().ToLower(), tilesL, wallsL, bushesL, bigBushesL));
+        }
     }
 }
