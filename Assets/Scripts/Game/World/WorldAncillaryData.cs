@@ -18,8 +18,8 @@ public static class WorldAncillaryData
             0, 0, 1, 1, 1, 1, 1, 1, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0
         }.FindAll(s => s == 1);
-    private static List<LocationResources> locationResources;
-    private static List<LocationResources> specialResources;
+    private static List<LocationResources> locationResources = new List<LocationResources>();
+    private static List<LocationResources> specialResources = new List<LocationResources>();
     private static List<SpecialRoomCarcaseStruct> specialRoomsCarcases = new List<SpecialRoomCarcaseStruct>()
     {
         new SpecialRoomCarcaseStruct("Home village", 1, Location.PLAIN, new List<int>()

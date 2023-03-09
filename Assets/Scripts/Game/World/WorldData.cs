@@ -8,11 +8,12 @@ public class WorldData
     private List<List<Tile>> tileIndexMap;
 
     public string WorldName => worldName;
-    public string StartRoomIndex => worldName;
-    public string LocationIndexMap => worldName;
-    public string TileIndexMap => worldName;
+    public int StartRoomIndex => startRoomIndex;
+    public int[] LocationIndexMap => locationIndexMap;
+    public List<List<Tile>> TileIndexMap => tileIndexMap;
 
-    public WorldData(int startRoomIndex, int[] locationIndexMap, List<List<Tile>> tileIndexMap)
+    public WorldData() { }
+        public WorldData(int startRoomIndex, int[] locationIndexMap, List<List<Tile>> tileIndexMap)
     {
         this.worldName = "World" + "-" + System.DateTime.Now.ToString().Replace(" ", "-").Replace(".", "-").Replace(":", "-");
         this.startRoomIndex = startRoomIndex;

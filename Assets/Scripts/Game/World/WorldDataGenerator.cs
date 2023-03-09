@@ -2,42 +2,34 @@
 using System.Collections;
 using System.Collections.Generic;
 using System;
+using System.IO;
 
 public class WorldDataGenerator
 {
+    private int extraFill = 9;
+
+    //public WorldData GetNewWorldData()
     public WorldData GetNewWorldData()
     {
         LoadAndAllocateResouces();
-
         int startRoomIndex = 3400;
         int worldSide = WorldAncillaryData.WorldSide;
-        int[] locationMap;
+        int[] locationMap = new int[] { };
         List<int> locationsInt = new List<int>();
-        int lastLocationIndex = (int)Location.SEA;
 
-        for (int i = 0; i <= lastLocationIndex; i++)
-        {
-            locationsInt.Add(i);
-        }
-
+        // Заполнение мира водой
+        for (int i = 0; i <= (int)Location.SEA; i++) { locationsInt.Add(i); }
         locationMap = new int[worldSide * worldSide];
-
-        for (int i = 0; i < worldSide * worldSide; i++)
-        {
-            locationMap[i] = locationsInt[locationsInt.Count - 1];
-        }
-
+        for (int i = 0; i < worldSide * worldSide; i++) { locationMap[i] = locationsInt[locationsInt.Count - 1]; }
         List<Vector2> points3 = new List<Vector2>();
         List<Vector2> points6 = new List<Vector2>();
         List<Vector2> points12 = new List<Vector2>();
         List<Vector2> points24 = new List<Vector2>();
-
         List<List<Vector2>> points = new List<List<Vector2>>() { points3, points6, points12, points24 };
-
         List<Vector2> possiblePoints = new List<Vector2>();
-
         int spaceBetweenPoints = 5;
 
+        // Выбор облости для первой локации
         while (possiblePoints.Count == 0)
         {
             possiblePoints = new List<Vector2>();
@@ -48,9 +40,10 @@ public class WorldDataGenerator
                         possiblePoints.Add(new Vector2(x, y));
         }
 
+        // Генерация первых 3 точкек
         for (int i = 0; i < 3; i++)
         {
-            Vector2 rp = possiblePoints[UnityEngine.Random.Range(0, possiblePoints.Count - 1)];
+            Vector2 rp = possiblePoints[UnityEngine.Random.Range(0, possiblePoints.Count - 1)]; // первая random point
             points[0].Add(rp);
 
             for (int y = (int)rp[1] - spaceBetweenPoints; y < rp[1] + spaceBetweenPoints + 1; y++)
@@ -59,33 +52,27 @@ public class WorldDataGenerator
                         possiblePoints.Remove(new Vector2(x, y));
         }
 
+        // Получение вершин секторов
         int centerX = (int)((points3[0].x + points3[1].x + points3[2].x) / 3);
         int centerY = (int)((points3[0].y + points3[1].y + points3[2].y) / 3);
-
-        // Получение контуров секторов
-        for (int i = 0; i < 3; i++)
-        {
-            points[i + 1] = GetNewApexes(points[i], centerX, centerY);
-        }
-
-        // Заполнение секторов
+        for (int i = 0; i < 3; i++) { points[i + 1] = GetNewApexes(points[i], centerX, centerY); }
         points.Reverse();
-        for (int i = 0; i < points.Count; i++)
+        
+        // Заполнение секторов
+        for (int locInd = 0; locInd < points.Count; locInd++) // Самая догая часть
         {
-            for (int e = 0; e < points[i].Count - 1; e++)
+            for (int e = 0; e < points[locInd].Count - 1; e++)
             {
-                int rand;
-
-                if (i == 1)
-                    rand = locationsInt[locationsInt.Count - UnityEngine.Random.Range(1, 2) - 2];
-                else
-                    rand = locationsInt[locationsInt.Count - i - 2];
-
-                FillInLines(new Vector2(centerX, centerY), points[i][e], points[i][e + 1], rand, worldSide, locationMap);
+                int randLoc;
+                if (locInd == 1) { randLoc = locationsInt[locationsInt.Count - UnityEngine.Random.Range(1, 2) - 2]; }
+                else { randLoc = locationsInt[locationsInt.Count - locInd - 2]; }
+                FillInLines(new Vector2(centerX, centerY), points[locInd][e], points[locInd][e + 1], randLoc, ref locationMap);
             }
 
-            FillInLines(new Vector2(centerX, centerY), points[i][points[i].Count - 1], points[i][0], locationsInt[locationsInt.Count - i - 2], worldSide, locationMap);
+            FillInLines(new Vector2(centerX, centerY), points[locInd][points[locInd].Count - 1], points[locInd][0],
+                locationsInt[locationsInt.Count - locInd - 2], ref locationMap); // Заполнение последнего сектора
         }
+
         points.Reverse();
 
         // Перенос точек на карту
@@ -99,42 +86,36 @@ public class WorldDataGenerator
             }
         }
 
-        for (int i = 0; i < locationMap.Length; i++) // qq типа пофиксил "err01"
-        {
-            if (locationMap[i] == 9)
-            {
-                locationMap[i] = locationMap[i - 1];
-            }
-        }
-
-
-        return new WorldData(startRoomIndex, locationMap, GenerateRooms(points, locationMap, worldSide, startRoomIndex));
+        var tileIndexMap = GenerateRooms(points, locationMap);
+        var tileMap = SpecialRoomsPlacing(points, tileIndexMap, out startRoomIndex);
+        return new WorldData(startRoomIndex, locationMap, tileIndexMap);
     }
 
-    private List<List<Tile>> GenerateRooms(List<List<Vector2>> pointMap, int[] locationMap, int worldSide, int startRoomIndex)
+    private List<List<Tile>> GenerateRooms(List<List<Vector2>> pointMap, int[] locationMap)
     {
-        var localTileMap = new List<List<Tile>>();
+        int worldSide = WorldAncillaryData.WorldSide;
+        var rooms = new List<List<Tile>>();
 
         for (int i = 0; i < locationMap.Length; i++)
-        {
-            localTileMap.Add(GetNewRoomData(locationMap[i], worldSide)); // qq (err01) тут в LocationsMap[i] проскакивает 9 (символ предзаполнения)
-        }
+            rooms.Add(GetNewRoomData(locationMap[i], worldSide));
+
+        return rooms;
+    }
+
+    private List<List<Tile>> SpecialRoomsPlacing(List<List<Vector2>> pointMap, List<List<Tile>> tileMap, out int startRoomIndex)
+    {
+        startRoomIndex = 4950; // если нету Home village, то спавнишься в центре (то есть в вулкане)
 
         for (int i = 0; i < WorldAncillaryData.SpecialRoomsCarcases.Count; i++)
         {
             int currentLocInd = (int)WorldAncillaryData.SpecialRoomsCarcases[i].sourceLocation;
             Vector2 currentLocPoints = pointMap[currentLocInd][UnityEngine.Random.Range(0, pointMap[currentLocInd].Count)];
-            int randomRoomIndex = (int)(worldSide * (currentLocPoints.y - 1) + currentLocPoints.x);
-            //localMap[randomRoomIndex] = GetSpecialRoomDataAtName(loc, localMap[randomRoomIndex]);
-            localTileMap[randomRoomIndex] = GetSpecialRoomDataAtIndex(i);
-
-            if (WorldAncillaryData.SpecialRoomsCarcases[i].name == "Home village")
-            {
-                startRoomIndex = randomRoomIndex;
-            }
+            int randomRoomIndex = (int)(WorldAncillaryData.WorldSide * (currentLocPoints.y - 1) + currentLocPoints.x);
+            tileMap[randomRoomIndex] = GetSpecialRoomDataAtIndex(i);
+            if (WorldAncillaryData.SpecialRoomsCarcases[i].name == "Home village") { startRoomIndex = randomRoomIndex; }
         }
 
-        return localTileMap;
+        return tileMap;
     }
 
     private List<Vector2> GetNewApexes(List<Vector2> p, int centerX, int centerY)
@@ -143,13 +124,12 @@ public class WorldDataGenerator
 
         // np - New Points
         List<Vector2> np = new List<Vector2>(); // Массив точек контура новой локации
-        List<Vector2> np1 = new List<Vector2>(); // Массив координат отрезков, идущих к вершине
-        List<Vector2> np2 = new List<Vector2>(); // Массив координат отрезков, идущих к стороне
+        List<Vector2> np1 = new List<Vector2>(); // Массив координат отрезков, из центра к вершине
+        List<Vector2> np2 = new List<Vector2>(); // ... к стороне
 
-        // Коэффициенты увеличения удаленности вершин новых локаций от центра острова.
+        // k - коэффициенты увеличения удаленности вершин новых локаций от центра острова.
         float k1 = 0; // К вершине
         float k2 = 0; // К стороне
-
         int x;
         int y;
 
@@ -197,80 +177,74 @@ public class WorldDataGenerator
         return np;
     }
 
-    private void FillInLines(Vector2 center, Vector2 p0, Vector2 p1, int fill, int worldSide, int[] locationMap)
+    private void FillInLines(Vector2 center, Vector2 p0, Vector2 p1, int fill, ref int[] locationMap)
     {
-        int extraFill = 9; // Символ предзаполнения
-        List<Vector2> _tri = new List<Vector2> { center, p0, p1 }; // Сектор предзаполнения
+        var worldSide = WorldAncillaryData.WorldSide;
+        int _extraFill = extraFill; // Символ предзаполнения
+        List<Vector2> secPre = new List<Vector2> { center, p0, p1 }; // Сектор предзаполнения
 
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < secPre.Count; i++) // Расчет данных о грани сектора заполнения и её заполнение
         {
-            int n = 0;
-            float h = _tri[i].y - _tri[_tri.Count - i - 1].y;
-            float w = _tri[i].x - _tri[_tri.Count - i - 1].x;
-            float d = 0; // Longer vector
-            float z = 0; // Shorter vector
+            int n = 0; // var that is longer (h or w)
+            int _ind = i <= 0 ? i + secPre.Count - 1 : i - 1;
+            float h = secPre[i].y - secPre[_ind].y; // height
+            float w = secPre[i].x - secPre[_ind].x; // width
+            float lv = 0; // longer vector
+            float sv = 0; // shorter vector
+            float nx = secPre[_ind].x;
+            float ny = secPre[_ind].y;
 
             if (Mathf.Abs(w) > Mathf.Abs(h))
             {
                 n = (int)w;
-                d = w / Mathf.Abs(w);
-
-                if (h == 0)
-                    z = 0;
-                else
-                    z = Mathf.Abs(h / w) * (h / Mathf.Abs(h));
+                lv = w / Mathf.Abs(w);
+                if (h == 0) { sv = 0; }
+                else { sv = Mathf.Abs(h / w) * (h / Mathf.Abs(h)); }
             }
             else
             {
                 n = (int)h;
-                d = h / Mathf.Abs(h);
-
-                if (w == 0)
-                    z = 0;
-                else
-                    z = Mathf.Abs(w / h) * (w / Mathf.Abs(w));
+                lv = h / Mathf.Abs(h);
+                if (w == 0) { sv = 0; }
+                else { sv = Mathf.Abs(w / h) * (w / Mathf.Abs(w)); }
             }
 
-            float nx = _tri[_tri.Count - i - 1].x;
-            float ny = _tri[_tri.Count - i - 1].y;
-
-            for (int j = 1; j < Mathf.Abs(n) + 1; j++) // Предзаполнение
+            for (int j = 1; j < Mathf.Abs(n) + 1; j++) // Предзаполнение грани сектора заполнения
             {
-                int _ind = worldSide * ((int)Mathf.Round(ny) - 1) + (int)Mathf.Round(nx);
-
-                locationMap[_ind] = extraFill;
-
-                nx += Mathf.Abs(w) > Mathf.Abs(h) ? d : z;
-                ny += Mathf.Abs(w) > Mathf.Abs(h) ? z : d;
+                int exInd = worldSide * ((int)Mathf.Round(ny) - 1) + (int)Mathf.Round(nx);
+                locationMap[exInd] = _extraFill;
+                nx += Mathf.Abs(w) > Mathf.Abs(h) ? lv : sv;
+                ny += Mathf.Abs(w) > Mathf.Abs(h) ? sv : lv;
             }
         }
 
-        for (int y = 1; y < worldSide + 1; y++) // Заполнение
+        // Выбор области сектора
+        List<int> xp = new List<int>(); // width sector
+        List<int> yp = new List<int>(); // height sector
+
+        foreach (Vector2 i in secPre)
         {
-            List<int> w = new List<int>();
+            xp.Add(Mathf.RoundToInt(i.x));
+            yp.Add(Mathf.RoundToInt(i.y));
+        }
 
-            for (int i = worldSide * (y - 1); i < worldSide * y; y++)
+        xp.Sort();
+        yp.Sort();
+
+        for (int y = yp[0]; y < yp[yp.Count - 1] + 1; y++)
+        {
+            List<int> strInd = new List<int>();
+            List<int> strVal = new List<int>();
+
+            for (int x = xp[0]; x < xp[xp.Count - 1] + 1; x++)
             {
-                w.Add(locationMap[i]);
+                strInd.Add(100*(y-1)+x);
+                strVal.Add(locationMap[100*(y-1)+x]);
             }
 
-            if (w.Contains(extraFill))
-            {
-                List<int> foundPoints = new List<int>();
-
-                for (int x = 0; x < w.Count; x++)
-                {
-                    if (w[x] == extraFill)
-                    {
-                        foundPoints.Add(worldSide * (y - 1) + x);
-                    }
-                }
-
-                for (int x = foundPoints[0]; x < foundPoints[foundPoints.Count - 1] + 1; x++)
-                {
-                    locationMap[x] = fill;
-                }
-            }
+            var i1 = strVal.FindIndex(_ => _ == _extraFill);
+            var i2 = strVal.FindLastIndex(_ => _ == _extraFill);
+            for (int x = i1; x < i2 + 1; x++) { locationMap[strInd[x]] = fill; }
         }
     }
 
@@ -327,6 +301,7 @@ public class WorldDataGenerator
                     bushesIndexes.Add(UnityEngine.Random.Range(0, bushesRep.Count));
                     isBushBig.Add(false);
                 }
+
                 bushesPositions.Add(new Vector2(UnityEngine.Random.Range(-0.5f, 0.5f), UnityEngine.Random.Range(-0.5f, 0.5f)));
             }
 
@@ -339,7 +314,6 @@ public class WorldDataGenerator
     private List<Tile> GetSpecialRoomDataAtIndex(int index)
     {
         SpecialRoomCarcaseStruct newSpecialRoom = WorldAncillaryData.SpecialRoomsCarcases[index]; // допилить // qq
-
         return default;
     }
 
