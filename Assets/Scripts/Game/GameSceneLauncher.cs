@@ -16,7 +16,7 @@ public class GameSceneLauncher : MonoBehaviour
     public void LaunchGameScene()
     {
         var newWD = new WorldDataGenerator().GetNewWorldData();
-        // textMap.text = GetTextMapAtWorldData(new WorldDataGenerator().GetNewWorldData());
+        textMap.text = GetTextMapAtWorldData(newWD.LocationIndexMap);
         // FileManager.SaveJSON(newWD);
 
         // Переход на игровую сцену
@@ -35,7 +35,8 @@ public class GameSceneLauncher : MonoBehaviour
         for (int i = 0; i < 10_000; i++) 
         {
             if (strL[i] == "4") { strL[i] = " "; }
-            if (i % 100 == 0 && i != 0) { newstr += "\n"; } newstr += strL[i] + "  ";
+            if (i % 100 == 0 && i != 0) { newstr += "\n"; } 
+            newstr += strL[i] + "  ";
         }
         return newstr;
     }
