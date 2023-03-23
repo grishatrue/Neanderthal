@@ -7,20 +7,19 @@ using UnityEngine.UI;
 public class GameSceneLauncher : MonoBehaviour
 {
     [SerializeField] private Text textMap;
+    [SerializeField] private SceneSwitcher sceneSwitcher;
 
     private void Start()
     {
-        LaunchGameScene();
+        WorldData newWD = new WorldDataGenerator().GetNewWorldData();
+        textMap.text = GetTextMapAtWorldData(newWD.LocationIndexMap); // Для теста // вывод карты символами
+        FileManager.SaveJSON(newWD);
+        WordDataHolder.world = newWD;
     }
 
     public void LaunchGameScene()
     {
-        var newWD = new WorldDataGenerator().GetNewWorldData();
-        textMap.text = GetTextMapAtWorldData(newWD.LocationIndexMap);
-        // FileManager.SaveJSON(newWD);
-
-        // Переход на игровую сцену
-        // (уже на игровой сцене) Загрузка стартовой комнаты
+        sceneSwitcher.GoToSceneAtName("GameScene");
     }
 
     private string GetTextMapAtWorldData(int[] locmap)
@@ -34,6 +33,7 @@ public class GameSceneLauncher : MonoBehaviour
         var newstr = "";
         for (int i = 0; i < 10_000; i++) 
         {
+            if (int.Parse(strL[i]) > 4) { strL[i] = "+"; }
             if (strL[i] == "4") { strL[i] = " "; }
             if (i % 100 == 0 && i != 0) { newstr += "\n"; } 
             newstr += strL[i] + "  ";

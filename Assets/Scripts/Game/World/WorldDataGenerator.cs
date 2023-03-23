@@ -8,17 +8,16 @@ public class WorldDataGenerator
 {
     private int extraFill = 9;
 
-    //public WorldData GetNewWorldData()
     public WorldData GetNewWorldData()
     {
-        LoadAndAllocateResouces();
         int startRoomIndex = 3400;
         int worldSide = WorldAncillaryData.WorldSide;
         int[] locationMap = new int[] { };
         List<int> locationsInt = new List<int>();
+        Dictionary<int, List<Vector2>> sortedLocMap = new Dictionary<int, List<Vector2>>();
 
         // Заполнение мира водой
-        for (int i = 0; i <= (int)Location.SEA; i++) { locationsInt.Add(i); }
+        for (int i = 0; i <= (int)LocationEnum.SEA; i++) { locationsInt.Add(i); }
         locationMap = new int[worldSide * worldSide];
         for (int i = 0; i < worldSide * worldSide; i++) { locationMap[i] = locationsInt[locationsInt.Count - 1]; }
         List<Vector2> points3 = new List<Vector2>();
@@ -55,11 +54,13 @@ public class WorldDataGenerator
         // Получение вершин секторов
         int centerX = (int)((points3[0].x + points3[1].x + points3[2].x) / 3);
         int centerY = (int)((points3[0].y + points3[1].y + points3[2].y) / 3);
+        Vector2 center = new Vector2(centerX, centerY); // Для вулкана
         for (int i = 0; i < 3; i++) { points[i + 1] = GetNewApexes(points[i], centerX, centerY); }
-        points.Reverse();
-        
+
         // Заполнение секторов
-        for (int locInd = 0; locInd < points.Count; locInd++) // Самая догая часть
+        points.Reverse();
+
+        for (int locInd = 0; locInd < points.Count; locInd++)
         {
             for (int e = 0; e < points[locInd].Count - 1; e++)
             {
@@ -86,33 +87,95 @@ public class WorldDataGenerator
             }
         }
 
+        // Генерация комнат
         var tileIndexMap = GenerateRooms(points, locationMap);
-        var tileMap = SpecialRoomsPlacing(points, tileIndexMap, out startRoomIndex);
+
+        // Добавление спецлокаций
+        var tileMap = SpecialRoomsPlacing(ref locationMap, ref tileIndexMap, ref startRoomIndex, center);
+
         return new WorldData(startRoomIndex, locationMap, tileIndexMap);
     }
 
     private List<List<Tile>> GenerateRooms(List<List<Vector2>> pointMap, int[] locationMap)
     {
-        int worldSide = WorldAncillaryData.WorldSide;
         var rooms = new List<List<Tile>>();
 
         for (int i = 0; i < locationMap.Length; i++)
-            rooms.Add(GetNewRoomData(locationMap[i], worldSide));
+            rooms.Add(GetNewRoomData(locationMap[i]));
 
         return rooms;
     }
 
-    private List<List<Tile>> SpecialRoomsPlacing(List<List<Vector2>> pointMap, List<List<Tile>> tileMap, out int startRoomIndex)
+    private List<List<Tile>> SpecialRoomsPlacing(ref int[] locationMap, ref List<List<Tile>> tileMap, ref int startRoomIndex, Vector2 center)
     {
-        startRoomIndex = 4950; // если нету Home village, то спавнишься в центре (то есть в вулкане)
+        var specialLocRes = WorldAncillaryData.GetSpecialLocationResources();
+        var locRes = WorldAncillaryData.GetLocationResources();
+        startRoomIndex = 0;
+        var possiblePoints = new Dictionary<int, List<int>>();
 
-        for (int i = 0; i < WorldAncillaryData.SpecialRoomsCarcases.Count; i++)
+        // разделить карты на карты локаций
+        for (int i = 0; i < locationMap.Length; i++)
         {
-            int currentLocInd = (int)WorldAncillaryData.SpecialRoomsCarcases[i].sourceLocation;
-            Vector2 currentLocPoints = pointMap[currentLocInd][UnityEngine.Random.Range(0, pointMap[currentLocInd].Count)];
-            int randomRoomIndex = (int)(WorldAncillaryData.WorldSide * (currentLocPoints.y - 1) + currentLocPoints.x);
-            tileMap[randomRoomIndex] = GetSpecialRoomDataAtIndex(i);
-            if (WorldAncillaryData.SpecialRoomsCarcases[i].name == "Home village") { startRoomIndex = randomRoomIndex; }
+            if (locationMap[i] != (int)LocationEnum.SEA)
+            {
+                if (!possiblePoints.ContainsKey(locationMap[i])) { possiblePoints[locationMap[i]] = new List<int>(); }
+                possiblePoints[locationMap[i]].Add(i);
+            }
+        }
+
+        for (int i = 0; i < WorldAncillaryData.SpecialRoomCarcases.Count; i++) // special rooms carcases
+        {
+            var currCarcase = WorldAncillaryData.SpecialRoomCarcases[i];
+
+            for (int j = 0; j < currCarcase.roomsCount; j++) // rooms
+            {
+                int currentLocInd = (int)currCarcase.sourceLocation;
+                int randRInd = possiblePoints[currentLocInd][UnityEngine.Random.Range(0, possiblePoints[currentLocInd].Count)];
+
+                if (currCarcase.locName == SpecialLocationEnum.HOME_VILLAGE)
+                    startRoomIndex = randRInd;
+                
+                if (currCarcase.locName == SpecialLocationEnum.VOLCANO)
+                    randRInd = Mathf.RoundToInt(center.y * 100 - 1 + center.x);
+
+                locationMap[randRInd] = (int)currCarcase.locName + 5; // test // qqq // починить размещение спецлокаций
+
+                for (int ti = 0; ti < tileMap[randRInd].Count; ti++) // tile index
+                {
+                    int currTileInd = currCarcase.tilesIndexes[ti];
+
+                    if (currTileInd != -1)
+                    {
+                        var newTName = specialLocRes[i].TilesSprites[currTileInd].name;
+                        bool isWall = newTName.Split('-')[1].ToLower() == "wall" ? true : false;
+                        Tile newTile = new Tile(currTileInd, isWall);
+                        tileMap[randRInd][ti] = newTile;
+                    }
+                    else if (tileMap[randRInd][ti].isWall) // меняем стену на обычный тайл
+                    {
+                        int randBCount = UnityEngine.Random.Range(0, 4);
+                        List<Bush> newBushes = new List<Bush>();
+
+                        for (int bi = 0; bi < randBCount; bi++) // Bushes
+                        {
+                            bool isBBig = (new bool[] { false, true })[UnityEngine.Random.Range(0, 2)];
+                            Vector2 bPos = new Vector2(UnityEngine.Random.Range(-0.5f, 0.5f), UnityEngine.Random.Range(-0.5f, 0.5f));
+                            int bInd = isBBig ? 
+                                UnityEngine.Random.Range(0, locRes[currentLocInd].BigBushes.Count) :
+                                UnityEngine.Random.Range(0, locRes[currentLocInd].Bushes.Count);
+
+                            newBushes.Add(new Bush(bInd, bPos, isBBig));
+                        }
+
+                        tileMap[randRInd][ti] = new Tile(currTileInd, false, newBushes);
+                    }
+                }
+
+                // clear possibles
+                for (int y = randRInd % 100 - 4; y < randRInd % 100 + 5; y++)
+                    for (int x = randRInd / 100 - 4; x < randRInd / 100 + 5; x++)
+                        if (possiblePoints[currentLocInd].Contains(y * 100 + x)) { possiblePoints[currentLocInd].Remove(y * 100 + x); }
+            }
         }
 
         return tileMap;
@@ -122,7 +185,7 @@ public class WorldDataGenerator
     {
         int n = p.Count;
 
-        // np - New Points
+        // np - New points
         List<Vector2> np = new List<Vector2>(); // Массив точек контура новой локации
         List<Vector2> np1 = new List<Vector2>(); // Массив координат отрезков, из центра к вершине
         List<Vector2> np2 = new List<Vector2>(); // ... к стороне
@@ -162,6 +225,7 @@ public class WorldDataGenerator
             y = (int)(((int)((p[i].y + p[i + 1].y) / 2) - centerY) / k2) + centerY;
             np2.Add(new Vector2(x, y));
         }
+
         // Последний отрезок к стороне
         x = (int)(((int)((p[n - 1].x + p[0].x) / 2) - centerX) / k2) + centerX;
         y = (int)(((int)((p[n - 1].y + p[0].y) / 2) - centerY) / k2) + centerY;
@@ -179,7 +243,7 @@ public class WorldDataGenerator
 
     private void FillInLines(Vector2 center, Vector2 p0, Vector2 p1, int fill, ref int[] locationMap)
     {
-        var worldSide = WorldAncillaryData.WorldSide;
+        int worldSide = WorldAncillaryData.WorldSide;
         int _extraFill = extraFill; // Символ предзаполнения
         List<Vector2> secPre = new List<Vector2> { center, p0, p1 }; // Сектор предзаполнения
 
@@ -242,133 +306,62 @@ public class WorldDataGenerator
                 strVal.Add(locationMap[100*(y-1)+x]);
             }
 
-            var i1 = strVal.FindIndex(_ => _ == _extraFill);
-            var i2 = strVal.FindLastIndex(_ => _ == _extraFill);
+            int i1 = strVal.FindIndex(_ => _ == _extraFill);
+            int i2 = strVal.FindLastIndex(_ => _ == _extraFill);
             for (int x = i1; x < i2 + 1; x++) { locationMap[strInd[x]] = fill; }
         }
     }
 
-    private List<Tile> GetNewRoomData(int locationIndex, int worldSide)
+    private List<Tile> GetNewRoomData(int locationIndex)
     {
-        List<Tile> tiles = new List<Tile>();
-        // загрузка ресов // qq // err
-        LocationResources locRepos = WorldAncillaryData.LocationResourcesList[locationIndex];
-        List<Sprite> tilesRep = locRepos.Tiles;
-        List<Sprite> bushesRep = locRepos.Bushes;
-        List<Sprite> wallsRep = locRepos.Walls;
-        List<Sprite> bigBushesRep = locRepos.BigBushes;
-
-        int wallsCount = UnityEngine.Random.Range(0, 5);
-
-        List<int> stonesArea = WorldAncillaryData.StonesArea;
+        List<Tile> newRoomData = new List<Tile>();
+        var resourcesList = WorldAncillaryData.GetLocationResources();
+        LocationResources locationRess = resourcesList[locationIndex];
+        int stonesCount = UnityEngine.Random.Range(0, 5);
         List<int> stonesIndexes = new List<int>();
+        List<int> possibleInds = new List<int>();
 
-        for (int i = 0; i < wallsCount; i++)
+        for (int i = 0; i < WorldAncillaryData.StonesArea.Count; i++) // possible area assignment
+            if (WorldAncillaryData.StonesArea[i] == 1) { possibleInds.Add(i); }
+
+        for (int i = 0; i < stonesCount; i++) // stones additing
         {
-            int rand = UnityEngine.Random.Range(0, stonesArea.Count);
-            stonesIndexes.Add(stonesArea[rand]);
-            stonesArea.Remove(rand);
+            int randInd = UnityEngine.Random.Range(0, possibleInds.Count);
+            possibleInds.Remove(randInd);
+            stonesIndexes.Add(randInd);
         }
 
-        for (int i = 0; i < worldSide; i++)
+        for (int i = 0; i < WorldAncillaryData.WorldSide; i++) // room // 10x10 tiles = 100 = world side
         {
-            int tileIndex;
-            bool isWall;
-            List<int> bushesIndexes = new List<int>();
-            List<Vector2> bushesPositions = new List<Vector2>();
-            List<bool> isBushBig = new List<bool>();
+            Tile newTile = new Tile();
+            newTile.bushes = new List<Bush>();
 
-            if (stonesIndexes.Contains(i))
+            if (stonesIndexes.Contains(i)) // is curr tile is Stone?
             {
-                tileIndex = UnityEngine.Random.Range(0, wallsRep.Count);
-                isWall = true;
+                newTile.tileIndex = UnityEngine.Random.Range(0, locationRess.Walls.Count);
+                newTile.isWall = true;
             }
             else
             {
-                tileIndex = UnityEngine.Random.Range(0, tilesRep.Count);
-                isWall = false;
+                newTile.tileIndex = UnityEngine.Random.Range(0, locationRess.TilesSprites.Count);
+                newTile.isWall = false;
             }
 
-            for (int e = 0; e < UnityEngine.Random.Range(0, bushesRep.Count); e++)
+            int randBushesCount = UnityEngine.Random.Range(0, 5);
+
+            for (int e = 0; e < randBushesCount; e++) // Bushes
             {
-                if (UnityEngine.Random.Range(0, 10) <= 3)
-                {
-                    bushesIndexes.Add(UnityEngine.Random.Range(0, bigBushesRep.Count));
-                    isBushBig.Add(true);
-                }
-                else
-                {
-                    bushesIndexes.Add(UnityEngine.Random.Range(0, bushesRep.Count));
-                    isBushBig.Add(false);
-                }
-
-                bushesPositions.Add(new Vector2(UnityEngine.Random.Range(-0.5f, 0.5f), UnityEngine.Random.Range(-0.5f, 0.5f)));
+                int newInd;
+                bool isBushBig = new bool[] { false, true }[UnityEngine.Random.Range(0, 2)];
+                if (isBushBig) { newInd = UnityEngine.Random.Range(0, locationRess.BigBushes.Count); }
+                else { newInd = UnityEngine.Random.Range(0, locationRess.Bushes.Count); }
+                Vector2 newBushPosition = new Vector2(UnityEngine.Random.Range(-0.5f, 0.5f), UnityEngine.Random.Range(-0.5f, 0.5f));
+                newTile.bushes.Add(new Bush(newInd, newBushPosition, isBushBig));
             }
 
-            tiles.Add(new Tile(tileIndex, isWall, bushesIndexes, bushesPositions, isBushBig));
+            newRoomData.Add(newTile);
         }
 
-        return tiles;
-    }
-    
-    private List<Tile> GetSpecialRoomDataAtIndex(int index)
-    {
-        SpecialRoomCarcaseStruct newSpecialRoom = WorldAncillaryData.SpecialRoomsCarcases[index]; // допилить // qq
-        return default;
-    }
-
-    public void LoadAndAllocateResouces()
-    {
-        var tiles = Resources.LoadAll<Sprite>("Game Objects/Tiles") as Sprite[];
-        var bushes = Resources.LoadAll<Sprite>("Game Objects/Bushes") as Sprite[];
-        var localLoc = new List<string>();
-
-        foreach (string i in Enum.GetNames(typeof(Location)))
-        {
-            localLoc.Add(i.ToLower());
-        }
-
-        for (int i = 0; i < localLoc.Count; i++)
-        {
-            List<Sprite> tilesL = new List<Sprite>();
-            List<Sprite> wallsL = new List<Sprite>();
-            List<Sprite> bushesL = new List<Sprite>();
-            List<Sprite> bigBushesL = new List<Sprite>();
-
-            for (int fileInd = 0; fileInd < tiles.Length; fileInd++)
-            {
-                if (tiles[fileInd].name.Split('-')[0].ToLower() == localLoc[i]) // tiles norm
-                {
-                    tilesL.Add(tiles[fileInd]);
-                }
-            }
-
-            for (int fileInd = 0; fileInd < tiles.Length; fileInd++) // walls
-            {
-                if (tiles[fileInd].name.Split('-')[1].ToLower() == "wall")
-                {
-                    wallsL.Add(tiles[fileInd]);
-                }
-            }
-
-            for (int fileInd = 0; fileInd < bushes.Length; fileInd++) // bushes low
-            {
-                if (bushes[fileInd].name.Split('-')[0].ToLower() == localLoc[i])
-                {
-                    bushesL.Add(bushes[fileInd]);
-                }
-            }
-
-            for (int fileInd = 0; fileInd < bushes.Length; fileInd++) // bushes big
-            {
-                if (bushes[fileInd].name.Split('-')[1].ToLower() == "big")
-                {
-                    bigBushesL.Add(bushes[fileInd]);
-                }
-            }
-
-            string locName = Enum.GetName(typeof(Location), i);
-            WorldAncillaryData.LocationResourcesList.Add(new LocationResources(locName.ToString().ToLower(), tilesL, wallsL, bushesL, bigBushesL));
-        }
+        return newRoomData;
     }
 }

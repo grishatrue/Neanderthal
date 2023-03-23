@@ -1698,6 +1698,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   textMap: {fileID: 1864671425}
+  sceneSwitcher: {fileID: 411471999}
 --- !u!1 &2063367949
 GameObject:
   m_ObjectHideFlags: 0

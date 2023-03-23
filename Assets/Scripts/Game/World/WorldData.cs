@@ -13,7 +13,7 @@ public class WorldData
     public List<List<Tile>> TileIndexMap => tileIndexMap;
 
     public WorldData() { }
-        public WorldData(int startRoomIndex, int[] locationIndexMap, List<List<Tile>> tileIndexMap)
+    public WorldData(int startRoomIndex, int[] locationIndexMap, List<List<Tile>> tileIndexMap)
     {
         this.worldName = "World" + "-" + System.DateTime.Now.ToString().Replace(" ", "-").Replace(".", "-").Replace(":", "-");
         this.startRoomIndex = startRoomIndex;

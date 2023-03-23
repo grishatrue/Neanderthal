@@ -5,13 +5,13 @@ using UnityEngine;
 public class TileGridCreator : MonoBehaviour
 {
     public Camera cam;
-    public int worldSide = WorldAncillaryData.WorldSide;
+    private int worldSide = WorldAncillaryData.WorldSide;
     private float tileSize;
     private List<Vector2> tilesPoints = new List<Vector2>();
 
-    public float TileSize => tileSize;
+    public List<Vector2> TilesPoints => tilesPoints;
 
-    void Awake()
+    private void Awake()
     {
         float cameraSize = cam.orthographicSize * 2;
         tileSize = cameraSize / worldSide;

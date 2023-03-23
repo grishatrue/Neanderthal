@@ -10,13 +10,14 @@ public class LocationResources
     private List<Sprite> bigBushes;
 
     public string LocationName => location;
-    public List<Sprite> Tiles => tiles;
+    public List<Sprite> TilesSprites => tiles;
     public List<Sprite> Walls => walls;
     public List<Sprite> Bushes => bushes;
     public List<Sprite> BigBushes => bigBushes;
 
+    public LocationResources() { }
     /// <summary>
-    /// !!! "location" parameter is <see cref="Location"/><c>.[value].ToString().ToLower()</c>
+    /// !!! "location" parameter must be <see cref="LocationEnum"/><c>.[value].ToString().ToLower()</c>
     /// </summary>
     public LocationResources(string location, List<Sprite> tiles, List<Sprite> walls, List<Sprite> bushes, List<Sprite> bigBushes)
     {
